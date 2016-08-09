@@ -22,6 +22,7 @@ namespace ExactOnline.Client.OAuth
 
 			var authorizationState = authorization.AuthorizationState;
 			oAuthClient.Authorize(ref authorizationState, authorization.RefreshToken);
+
 			authorization.AuthorizationState = authorizationState;
 		}
 	}

@@ -19,6 +19,8 @@ namespace DropboxSync.Service
         public string ExactAccessToken { get; private set; }
         public string ExactEndPoint { get; private set; }
 
+        public DateTime? ExactTokenExpiration { get; private set; }
+
         public DropboxServiceSettings() { }
 
         public void LoadFromAppSettings()
@@ -53,6 +55,9 @@ namespace DropboxSync.Service
             ExactCallbackUrl = SettingsHelper.GetValue(dict, "Exact:CallbackUrl");
             ExactAccessToken = SettingsHelper.GetValue(dict, "Exact:AccessToken");
             ExactEndPoint = SettingsHelper.GetValue(dict, "Exact:EndPoint", "https://start.exactonline.nl");
+            ExactTokenExpiration = SettingsHelper.GetValue<DateTime>(dict, "Exact:AccessTokenExpiration");
+            if (ExactTokenExpiration == DateTime.MinValue)
+                ExactTokenExpiration = null;
         }
     }
 }

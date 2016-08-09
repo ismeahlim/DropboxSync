@@ -17,5 +17,23 @@ namespace DropboxSync.Data.Repositories
                 return con.Settings.ToList();
             }
         }
+
+        public void AddOrUpdate(string key, string value)
+        {
+            using (var con = new DropBoxSyncContext())
+            {
+                var setting = con.Settings.Find(key);
+                if (setting == null)
+                    con.Settings.Add(new Settings()
+                    {
+                        Key = key,
+                        value = value
+                    });
+                else
+                    setting.value = value;
+
+                con.SaveChanges();
+            }
+        }
     }
 }

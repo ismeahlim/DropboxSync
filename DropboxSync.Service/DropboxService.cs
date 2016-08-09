@@ -22,12 +22,16 @@ namespace DropboxSync.Service
         private DropBoxSync _dropBoxSync;
         private ExactOnlineSync _exactOnlineSync;
 
-        private DropboxRefRepository _dropboxRefRepo;
-        private DropboxServiceSettings _dropboxServiceSettings;
+        private readonly DropboxRefRepository _dropboxRefRepo;
+        private readonly SettingsRepository _settingRepo;
+
+        private readonly DropboxServiceSettings _dropboxServiceSettings;
 
         public DropboxService()
         {
             _dropboxRefRepo = new DropboxRefRepository();
+            _settingRepo = new SettingsRepository();
+
             _dropboxServiceSettings = new DropboxServiceSettings();
         }
 
@@ -44,11 +48,19 @@ namespace DropboxSync.Service
         {
             _dropboxServiceSettings.LoadFromDb();
 
-            _exactOnlineSync = new ExactOnlineSync(_dropboxServiceSettings.ExactApiKey, _dropboxServiceSettings.ExactApiSecret, _dropboxServiceSettings.ExactCallbackUrl, _dropboxServiceSettings.ExactEndPoint, _dropboxServiceSettings.ExactAccessToken);
+            _exactOnlineSync = new ExactOnlineSync(_dropboxServiceSettings.ExactApiKey, _dropboxServiceSettings.ExactApiSecret, _dropboxServiceSettings.ExactCallbackUrl, _dropboxServiceSettings.ExactEndPoint, _dropboxServiceSettings.ExactAccessToken, _dropboxServiceSettings.ExactTokenExpiration,
+                UpdateExactToken);
             _exactOnlineSync.Initialize();
 
             _dropBoxSync = new DropBoxSync(_dropboxServiceSettings.DropBoxApiKey, _dropboxServiceSettings.DropBoxApiSecret, _dropboxServiceSettings.DropBoxAccessToken, _dropboxServiceSettings.DropBoxPath, _dropboxServiceSettings.DropBoxTimeout, _dropboxServiceSettings.DropBoxReadWriteTimeout);
             _dropBoxSync.Initialize();
+        }
+
+        private void UpdateExactToken(string token, DateTime? tokenExpired)
+        {
+            _settingRepo.AddOrUpdate("Exact:AccessToken", token);
+            _settingRepo.AddOrUpdate("Exact:AccessTokenExpiration", tokenExpired == null ? "" : tokenExpired.Value.ToString());
+
         }
 
         private async Task<bool> SyncDropbox()

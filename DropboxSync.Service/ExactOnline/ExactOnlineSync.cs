@@ -4,17 +4,13 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-using System.Windows;
-using System.Net;
-using System.Net.Http;
 using NLog;
-
-using Dropbox.Api;
-using Dropbox.Api.Files;
 
 using ExactOnline.Client.Sdk.Controllers;
 using ExactOnline.Client.Models;
 using ExactOnline.Client.OAuth;
+
+using DotNetOpenAuth.OAuth2;
 
 namespace DropboxSync.Service.ExactOnline
 {
@@ -27,7 +23,13 @@ namespace DropboxSync.Service.ExactOnline
         private string _callbackUrl;
         private string _endPoint; 
         private string _accessToken;
-        private readonly UserAuthorization _authorization;
+
+        private DateTime? _accessTokenExpiration;
+
+        private readonly UserAuthorization _userAuthorization;
+
+        public delegate void UpdateTokenDelegate(string token, DateTime? tokenExpired);
+        private UpdateTokenDelegate _updateToken;
 
         //private int _timeoutInMinutes = 20;
         //private int _timeoutReadWriteInSec = 10;
@@ -38,36 +40,70 @@ namespace DropboxSync.Service.ExactOnline
         private ExactOnlineClient _client;
 
         public ExactOnlineSync(string apiKey, string apiSecret, string callbackUrl,
-            string endPoint, string accessToken)
+            string endPoint, string accessToken, DateTime? accessTokenExpiration,
+            UpdateTokenDelegate updateToken)
         {
             _apiKey = apiKey;
             _apiSecret = apiSecret;
             _callbackUrl = callbackUrl;
             _endPoint = endPoint; 
             _accessToken = accessToken;
+            _accessTokenExpiration = accessTokenExpiration;
+            _updateToken = updateToken;
 
             //_timeoutInMinutes = timeoutInMinutes;
             //_timeoutReadWriteInSec = timeoutReadWriteInMinutes;
 
-            _authorization = new UserAuthorization();
+            _userAuthorization = new UserAuthorization();
         }
 
         public bool Initialize()
         {
             _logger.Debug("ExactOnlineSync.Initialize started.");
 
+            InitializeAuth();
             _client = new ExactOnlineClient(_endPoint, this.GetAccessToken);
             
             _logger.Debug("DropBoxSync.Initialize successful");
             return true;
         }
 
+        private void InitializeAuth()
+        {
+            if (IsAccessTokenValid())
+            {
+                _userAuthorization.AuthorizationState = new AuthorizationState
+                {
+                    Callback = new Uri(_callbackUrl)
+                };
+
+                _userAuthorization.AuthorizationState.AccessToken = _accessToken;
+                _userAuthorization.AuthorizationState.AccessTokenExpirationUtc = _accessTokenExpiration;
+            }
+        }
+        private bool IsAccessTokenValid()
+        {
+            return !string.IsNullOrWhiteSpace(_accessToken)
+                && _accessTokenExpiration.HasValue
+                && _accessTokenExpiration.Value > DateTime.UtcNow;
+        }
+
         private string GetAccessToken()
         {
-            UserAuthorizations.Authorize(_authorization, _endPoint, _apiKey, _apiSecret,
+            UserAuthorizations.Authorize(_userAuthorization, _endPoint, _apiKey, _apiSecret,
                 new Uri(_callbackUrl));
 
-            return _authorization.AccessToken;
+            if (_updateToken != null 
+                && _userAuthorization.AccessToken != null
+                && _accessToken != _userAuthorization.AccessToken)
+            {
+                _accessToken = _userAuthorization.AccessToken;
+                _accessTokenExpiration = _userAuthorization.AuthorizationState.AccessTokenExpirationUtc;
+
+                _updateToken(_accessToken, _accessTokenExpiration);
+            }
+
+            return _userAuthorization.AccessToken;
         }
 
         public List<Guid> GetDocumentIds()
